@@ -1,0 +1,85 @@
+// Everardo Guadalupe Torres Tovar
+// GDS0543
+// 19/09/2023
+
+// Librerias
+#include <LiquidCrystal_I2C.h>
+#include "DHTesp.h"
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>
+#include <ArduinoJson.h>
+
+// Configuración de WiFi
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+// Configuración de Telegram
+#define BOT_TOKEN "7325151699:AAF17gaL_FSuS4MYdh70aRyhob7FatREADA"
+#define CHAT_ID "621054263"
+
+WiFiClientSecure client;
+UniversalTelegramBot bot(BOT_TOKEN, client);
+
+// Declaramos nuestro objeto, direccion I2C, numero Columnas, filas.
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+DHTesp sensor;
+int dhtPin = 13;
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Iniciamos la pantalla
+  lcd.init();
+  lcd.backlight();
+  
+  // Ubicamos cursor y mostramos mensajes iniciales
+  lcd.setCursor(0, 0);
+  lcd.print("Hola");
+  delay(1000);
+  lcd.clear();
+  delay(1000);
+  lcd.print("GDS0543");
+  
+  // Configuramos el pin y el sensor
+  pinMode(dhtPin, INPUT);
+  sensor.setup(dhtPin, DHTesp::DHT22);
+  
+  // Conectamos a la red WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  client.setInsecure();
+}
+
+void loop() {
+  //leer los datos detemperatura y humedad 
+  TempAndHumidity lectura= sensor.getTempAndHumidity();
+  //despegarlos en pantalla
+  //si la temperatura es mayor a 65 limpia pantalla y pon una alerta
+  if(lectura.temperature>65){
+    lcd.setCursor(0,0);
+    lcd.print("Alerta");
+    lcd.setCursor(0,1);
+    lcd.print("Temp Alta: "+String(lectura.temperature, 1)+"C");
+  }else{//si no coloca la temperatura y humedad nuevamente
+    lcd.setCursor(0,0);
+    lcd.print("Temp: "+String(lectura.temperature, 2)+"C");
+    lcd.setCursor(0,1);
+    lcd.print("Hum: "+String(lectura.humidity, 2)+"%");
+  }
+
+  // Enviar los datos a Telegram
+  String message = "Temperatura: " + String(lectura.temperature, 2) + "°C\n";
+  message += "Humedad: " + String(lectura.humidity, 1) + "%";
+  bot.sendMessage(CHAT_ID, message, "");
+
+
+  //Espera de 2 segundos para nueva lectura
+  delay(2000);
+  lcd.clear();
+}
